@@ -1,98 +1,340 @@
-import { Image } from 'expo-image';
-import { Platform, StyleSheet } from 'react-native';
+import React, { useCallback } from "react";
+import {
+  View,
+  Text,
+  StyleSheet,
+  ScrollView,
+  RefreshControl,
+  TouchableOpacity,
+  ActivityIndicator,
+} from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
+import { useAuth } from "../../src/context/AuthContext";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { statsService } from "../../src/services/stats.service";
+import { transactionService } from "../../src/services/transaction.service";
+import {
+  Bell,
+  ChevronRight,
+  TrendingDown,
+  TrendingUp,
+  Wallet,
+  Plus,
+} from "lucide-react-native";
+import { useRouter } from "expo-router";
 
-import { HelloWave } from '@/components/hello-wave';
-import ParallaxScrollView from '@/components/parallax-scroll-view';
-import { ThemedText } from '@/components/themed-text';
-import { ThemedView } from '@/components/themed-view';
-import { Link } from 'expo-router';
+export default function Dashboard() {
+  const { user } = useAuth();
+  const router = useRouter();
+  const queryClient = useQueryClient();
 
-export default function HomeScreen() {
+  const {
+    data: stats,
+    isLoading: statsLoading,
+    refetch: refetchStats,
+  } = useQuery({
+    queryKey: ["monthlyStats"],
+    queryFn: statsService.getMonthlyStats,
+  });
+
+  const {
+    data: recentTransactions,
+    isLoading: transactionsLoading,
+    refetch: refetchTransactions,
+  } = useQuery({
+    queryKey: ["recentTransactions"],
+    queryFn: transactionService.getRecentTransactions,
+  });
+
+  const onRefresh = useCallback(() => {
+    refetchStats();
+    refetchTransactions();
+    queryClient.invalidateQueries({ queryKey: ["transactions"] });
+  }, []);
+
+  const formatCurrency = (amount: number) => {
+    return new Intl.NumberFormat("id-ID", {
+      style: "currency",
+      currency: "IDR",
+      minimumFractionDigits: 0,
+    }).format(amount);
+  };
+
+  const isLoading = statsLoading || transactionsLoading;
+
   return (
-    <ParallaxScrollView
-      headerBackgroundColor={{ light: '#A1CEDC', dark: '#1D3D47' }}
-      headerImage={
-        <Image
-          source={require('@/assets/images/partial-react-logo.png')}
-          style={styles.reactLogo}
-        />
-      }>
-      <ThemedView style={styles.titleContainer}>
-        <ThemedText type="title">Welcome!</ThemedText>
-        <HelloWave />
-      </ThemedView>
-      <ThemedView style={styles.stepContainer}>
-        <ThemedText type="subtitle">Step 1: Try it</ThemedText>
-        <ThemedText>
-          Edit <ThemedText type="defaultSemiBold">app/(tabs)/index.tsx</ThemedText> to see changes.
-          Press{' '}
-          <ThemedText type="defaultSemiBold">
-            {Platform.select({
-              ios: 'cmd + d',
-              android: 'cmd + m',
-              web: 'F12',
-            })}
-          </ThemedText>{' '}
-          to open developer tools.
-        </ThemedText>
-      </ThemedView>
-      <ThemedView style={styles.stepContainer}>
-        <Link href="/modal">
-          <Link.Trigger>
-            <ThemedText type="subtitle">Step 2: Explore</ThemedText>
-          </Link.Trigger>
-          <Link.Preview />
-          <Link.Menu>
-            <Link.MenuAction title="Action" icon="cube" onPress={() => alert('Action pressed')} />
-            <Link.MenuAction
-              title="Share"
-              icon="square.and.arrow.up"
-              onPress={() => alert('Share pressed')}
-            />
-            <Link.Menu title="More" icon="ellipsis">
-              <Link.MenuAction
-                title="Delete"
-                icon="trash"
-                destructive
-                onPress={() => alert('Delete pressed')}
-              />
-            </Link.Menu>
-          </Link.Menu>
-        </Link>
+    <SafeAreaView style={styles.container}>
+      <ScrollView
+        contentContainerStyle={styles.scrollContent}
+        refreshControl={
+          <RefreshControl refreshing={isLoading} onRefresh={onRefresh} />
+        }
+      >
+        {/* Header */}
+        <View style={styles.header}>
+          <View>
+            <Text style={styles.greeting}>Hello,</Text>
+            <Text style={styles.userName}>{user?.name || "User"}</Text>
+          </View>
+          <TouchableOpacity 
+            style={styles.avatarPlaceholder}
+            onPress={() => router.push("/(tabs)/profile")}
+          >
+            <Text style={styles.avatarText}>
+              {user?.name?.charAt(0).toUpperCase()}
+            </Text>
+          </TouchableOpacity>
+        </View>
 
-        <ThemedText>
-          {`Tap the Explore tab to learn more about what's included in this starter app.`}
-        </ThemedText>
-      </ThemedView>
-      <ThemedView style={styles.stepContainer}>
-        <ThemedText type="subtitle">Step 3: Get a fresh start</ThemedText>
-        <ThemedText>
-          {`When you're ready, run `}
-          <ThemedText type="defaultSemiBold">npm run reset-project</ThemedText> to get a fresh{' '}
-          <ThemedText type="defaultSemiBold">app</ThemedText> directory. This will move the current{' '}
-          <ThemedText type="defaultSemiBold">app</ThemedText> to{' '}
-          <ThemedText type="defaultSemiBold">app-example</ThemedText>.
-        </ThemedText>
-      </ThemedView>
-    </ParallaxScrollView>
+        {/* Summary Card */}
+        <View style={styles.summaryCard}>
+          <View style={styles.summaryHeader}>
+            <Text style={styles.summaryTitle}>Total Expense</Text>
+            <TouchableOpacity 
+              style={styles.quickAddButton}
+              onPress={() => router.push("/(tabs)/scan")}
+            >
+              <Plus size={16} color="#FFFFFF" />
+              <Text style={styles.quickAddText}>Add</Text>
+            </TouchableOpacity>
+          </View>
+          <Text style={styles.totalAmount}>
+            {stats ? formatCurrency(stats.data.totalExpense) : "Rp 0"}
+          </Text>
+          <Text style={styles.periodText}>This Month</Text>
+          <View style={styles.cardFooter}>
+            <View style={styles.trendBadge}>
+              <TrendingUp size={14} color="#FF6B6B" />
+              <Text style={styles.trendText}>+12% vs last month</Text>
+            </View>
+          </View>
+        </View>
+
+        {/* Quick Actions (Optional placeholder) */}
+        {/* <View style={styles.actionsRow}>
+          <TouchableOpacity style={styles.actionButton}>
+            <Text>Add Income</Text>
+          </TouchableOpacity>
+        </View> */}
+
+        {/* Recent Transactions */}
+        <View style={styles.section}>
+          <View style={styles.sectionHeader}>
+            <Text style={styles.sectionTitle}>Recent Transactions</Text>
+            <TouchableOpacity onPress={() => router.push("/(tabs)/history")}>
+              <Text style={styles.seeAll}>See All</Text>
+            </TouchableOpacity>
+          </View>
+
+          {recentTransactions?.data?.length === 0 ? (
+            <View style={styles.emptyState}>
+              <History size={48} color="#ccc" />
+              <Text style={styles.emptyText}>No transactions yet</Text>
+            </View>
+          ) : (
+            recentTransactions?.data?.map((transaction) => (
+              <View key={transaction.id} style={styles.transactionItem}>
+                <View style={styles.transactionIcon}>
+                  <TrendingDown size={20} color="#FF6B6B" />
+                </View>
+                <View style={styles.transactionDetails}>
+                  <Text style={styles.transactionTitle}>
+                    {transaction.items && transaction.items.length > 0
+                      ? transaction.items[0].name +
+                        (transaction.items.length > 1
+                          ? ` +${transaction.items.length - 1} others`
+                          : "")
+                      : "Transaction"}
+                  </Text>
+                  <Text style={styles.transactionDate}>
+                    {new Date(transaction.transactionDate).toLocaleDateString(
+                      "id-ID",
+                      {
+                        day: "numeric",
+                        month: "short",
+                        hour: "2-digit",
+                        minute: "2-digit",
+                      }
+                    )}
+                  </Text>
+                </View>
+                <Text style={styles.transactionAmount}>
+                  -{formatCurrency(Number(transaction.totalAmount))}
+                </Text>
+              </View>
+            ))
+          )}
+        </View>
+      </ScrollView>
+    </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  titleContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
+  container: {
+    flex: 1,
+    backgroundColor: "#F8F9FA",
   },
-  stepContainer: {
-    gap: 8,
+  scrollContent: {
+    padding: 20,
+  },
+  header: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: 24,
+  },
+  greeting: {
+    fontSize: 16,
+    color: "#6C757D",
+  },
+  userName: {
+    fontSize: 24,
+    fontWeight: "bold",
+    color: "#212529",
+    marginBottom: 4,
+  },
+  avatarPlaceholder: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: "#E9ECEF",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  avatarText: {
+    fontSize: 18,
+    fontWeight: "bold",
+    color: "#495057",
+  },
+  summaryCard: {
+    backgroundColor: "#228BE6",
+    borderRadius: 16,
+    padding: 20,
+    marginBottom: 24,
+    shadowColor: "#228BE6",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 4,
+  },
+  summaryHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
     marginBottom: 8,
   },
-  reactLogo: {
-    height: 178,
-    width: 290,
-    bottom: 0,
-    left: 0,
-    position: 'absolute',
+  summaryTitle: {
+    color: "rgba(255, 255, 255, 0.8)",
+    fontSize: 14,
+    fontWeight: "500",
+  },
+  quickAddButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "rgba(255, 255, 255, 0.2)",
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 20,
+  },
+  quickAddText: {
+    color: "#FFFFFF",
+    fontSize: 12,
+    fontWeight: "600",
+    marginLeft: 4,
+  },
+  totalAmount: {
+    color: "#FFFFFF",
+    fontSize: 32,
+    fontWeight: "bold",
+    marginBottom: 4,
+  },
+  periodText: {
+    color: "rgba(255, 255, 255, 0.7)",
+    fontSize: 14,
+    marginBottom: 16,
+  },
+  cardFooter: {
+    flexDirection: "row",
+    alignItems: "center",
+  },
+  trendBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "rgba(255, 255, 255, 0.2)",
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 8,
+  },
+  trendText: {
+    color: "#FFFFFF",
+    fontSize: 12,
+    marginLeft: 4,
+  },
+  section: {
+    marginBottom: 24,
+  },
+  sectionHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: 16,
+  },
+  sectionTitle: {
+    fontSize: 18,
+    fontWeight: "bold",
+    color: "#212529",
+  },
+  seeAll: {
+    color: "#228BE6",
+    fontSize: 14,
+  },
+  transactionItem: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#FFFFFF",
+    padding: 16,
+    borderRadius: 12,
+    marginBottom: 12,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 4,
+    elevation: 2,
+  },
+  transactionIcon: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: "#FFF5F5",
+    justifyContent: "center",
+    alignItems: "center",
+    marginRight: 12,
+  },
+  transactionDetails: {
+    flex: 1,
+  },
+  transactionTitle: {
+    fontSize: 16,
+    fontWeight: "600",
+    color: "#212529",
+    marginBottom: 4,
+  },
+  transactionDate: {
+    fontSize: 12,
+    color: "#ADB5BD",
+  },
+  transactionAmount: {
+    fontSize: 16,
+    fontWeight: "bold",
+    color: "#FA5252",
+  },
+  emptyState: {
+    alignItems: "center",
+    padding: 40,
+  },
+  emptyText: {
+    marginTop: 12,
+    color: "#ADB5BD",
   },
 });

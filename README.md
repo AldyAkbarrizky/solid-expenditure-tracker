@@ -1,50 +1,32 @@
-# Welcome to your Expo app 👋
+# Solid Expenditure Tracker
 
-This is an [Expo](https://expo.dev) project created with [`create-expo-app`](https://www.npmjs.com/package/create-expo-app).
+Aplikasi pelacakan pengeluaran komprehensif yang dibangun dengan React Native (Expo) dan backend Node.js.
 
-## Get started
+## Fitur
 
-1. Install dependencies
+- **Dashboard**: Lihat statistik pengeluaran bulanan dan transaksi terbaru.
+- **Tambah Transaksi**: Tambahkan transaksi dengan mudah dengan dukungan untuk banyak item, kategori, dan pemindaian struk (OCR).
+- **Riwayat**: Lihat riwayat transaksi dengan filter canggih (Tanggal, Kategori, Pencarian).
+- **Profil**: Kelola profil pengguna dan pengaturan.
 
-   ```bash
-   npm install
-   ```
+## Teknologi yang Digunakan
 
-2. Start the app
+- **Frontend**: React Native, Expo, TypeScript, NativeWind (Tailwind CSS), React Query.
+- **Backend**: Node.js, Express, Drizzle ORM, MySQL.
 
-   ```bash
-   npx expo start
-   ```
+## Cara Memulai
 
-In the output, you'll find options to open the app in a
+1.  **Instal dependensi**:
+    ```bash
+    npm install
+    ```
 
-- [development build](https://docs.expo.dev/develop/development-builds/introduction/)
-- [Android emulator](https://docs.expo.dev/workflow/android-studio-emulator/)
-- [iOS simulator](https://docs.expo.dev/workflow/ios-simulator/)
-- [Expo Go](https://expo.dev/go), a limited sandbox for trying out app development with Expo
+2.  **Jalankan aplikasi**:
+    ```bash
+    npx expo start
+    ```
 
-You can start developing by editing the files inside the **app** directory. This project uses [file-based routing](https://docs.expo.dev/router/introduction).
-
-## Get a fresh project
-
-When you're ready, run:
-
-```bash
-npm run reset-project
-```
-
-This command will move the starter code to the **app-example** directory and create a blank **app** directory where you can start developing.
-
-## Learn more
-
-To learn more about developing your project with Expo, look at the following resources:
-
-- [Expo documentation](https://docs.expo.dev/): Learn fundamentals, or go into advanced topics with our [guides](https://docs.expo.dev/guides).
-- [Learn Expo tutorial](https://docs.expo.dev/tutorial/introduction/): Follow a step-by-step tutorial where you'll create a project that runs on Android, iOS, and the web.
-
-## Join the community
-
-Join our community of developers creating universal apps.
-
-- [Expo on GitHub](https://github.com/expo/expo): View our open source platform and contribute.
-- [Discord community](https://chat.expo.dev): Chat with Expo users and ask questions.
+3.  **Jalankan di perangkat/emulator**:
+    -   Tekan `a` untuk emulator Android.
+    -   Tekan `i` untuk simulator iOS.
+    -   Pindai kode QR dengan Expo Go di perangkat fisik Anda.
