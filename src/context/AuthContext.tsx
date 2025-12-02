@@ -2,17 +2,22 @@ import React, { createContext, useContext, useEffect, useState } from "react";
 import * as SecureStore from "expo-secure-store";
 import { useRouter, useSegments } from "expo-router";
 
-type User = {
-  id: number;
-  name: string;
-  email: string;
-};
+import { User } from "../types";
+
+// type User = {
+//   id: number;
+//   name: string;
+//   email: string;
+//   avatar?: string;
+//   familyId?: number;
+// };
 
 type AuthType = {
   user: User | null;
   token: string | null;
   signIn: (token: string, user: User) => void;
   signOut: () => void;
+  updateProfile: (data: Partial<User>) => void;
   isLoading: boolean;
 };
 
@@ -21,6 +26,7 @@ const AuthContext = createContext<AuthType>({
   token: null,
   signIn: () => {},
   signOut: () => {},
+  updateProfile: () => {},
   isLoading: true,
 });
 
@@ -82,8 +88,16 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     await SecureStore.deleteItemAsync("user");
   };
 
+  const updateProfile = async (data: Partial<User>) => {
+    if (user) {
+      const updatedUser = { ...user, ...data };
+      setUser(updatedUser);
+      await SecureStore.setItemAsync("user", JSON.stringify(updatedUser));
+    }
+  };
+
   return (
-    <AuthContext.Provider value={{ user, token, signIn, signOut, isLoading }}>
+    <AuthContext.Provider value={{ user, token, signIn, signOut, updateProfile, isLoading }}>
       {children}
     </AuthContext.Provider>
   );

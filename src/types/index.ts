@@ -6,12 +6,40 @@ export interface User {
   familyId?: number;
 }
 
+export interface Family {
+  id: number;
+  name: string;
+  inviteCode: string;
+  adminId: number;
+}
+
+export interface FamilyMembersResponse {
+  family: Family;
+  members: User[];
+}
+
 export interface Category {
   id: number;
   name: string;
   icon?: string;
   color?: string;
   isDefault: boolean;
+}
+
+export interface TransactionFee {
+  id?: number;
+  transactionId?: number;
+  name: string;
+  amount: number;
+}
+
+export interface TransactionDiscount {
+  id?: number;
+  transactionId?: number;
+  name: string;
+  amount: number;
+  type: 'PERCENT' | 'NOMINAL';
+  value: number;
 }
 
 export interface TransactionItem {
@@ -22,6 +50,9 @@ export interface TransactionItem {
   name: string;
   price: number;
   qty: number;
+  basePrice?: number | null;
+  discountType?: 'PERCENT' | 'NOMINAL' | null;
+  discountValue?: number | null;
 }
 
 export interface Transaction {
@@ -34,6 +65,8 @@ export interface Transaction {
   imageUrl?: string;
   rawOcrText?: string;
   items?: TransactionItem[];
+  fees?: TransactionFee[];
+  discounts?: TransactionDiscount[];
   createdAt: string;
 }
 

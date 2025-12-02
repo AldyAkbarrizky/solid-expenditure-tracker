@@ -26,9 +26,11 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 
 import { useAuth } from "../../src/context/AuthContext";
+import { useTheme } from "../../src/context/ThemeContext";
 import api from "../../src/services/api";
 
 export default function RegisterScreen() {
+  const { colors, theme } = useTheme();
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -89,7 +91,7 @@ export default function RegisterScreen() {
     setLoading(true);
     try {
       const res = await api.post("/auth/register", { name, email, password });
-      console.log("Data user", res.data);
+      router.replace("/family-setup");
       signIn(res.data.token, res.data.user);
       Alert.alert("Berhasil", "Akun berhasil dibuat!");
     } catch (error: any) {
@@ -112,7 +114,7 @@ export default function RegisterScreen() {
   );
 
   return (
-    <SafeAreaView style={{ flex: 1, backgroundColor: "#fff" }}>
+    <SafeAreaView style={{ flex: 1, backgroundColor: colors.background }}>
       <KeyboardAvoidingView
         behavior={Platform.OS === "ios" ? "padding" : undefined}
         style={{ flex: 1 }}
@@ -127,23 +129,24 @@ export default function RegisterScreen() {
             onPress={() => router.back()}
             style={styles.backButton}
           >
-            <ArrowLeft color="#333" size={24} />
+            <ArrowLeft color={colors.text} size={24} />
           </TouchableOpacity>
 
           <View style={styles.header}>
-            <Text style={styles.title}>Buat Akun Baru</Text>
-            <Text style={styles.subtitle}>
+            <Text style={[styles.title, { color: colors.primary }]}>Buat Akun Baru</Text>
+            <Text style={[styles.subtitle, { color: colors.secondary }]}>
               Mulai catat pengeluaranmu hari ini.
             </Text>
           </View>
 
           <View style={styles.form}>
             {/* Nama */}
-            <View style={styles.inputWrapper}>
-              <User color="#666" size={20} style={styles.inputIcon} />
+            <View style={[styles.inputWrapper, { backgroundColor: colors.card, borderColor: colors.border }]}>
+              <User color={colors.muted} size={20} style={styles.inputIcon} />
               <TextInput
-                style={styles.input}
+                style={[styles.input, { color: colors.text }]}
                 placeholder="Nama Lengkap"
+                placeholderTextColor={colors.muted}
                 value={name}
                 onChangeText={setName}
               />
@@ -154,17 +157,19 @@ export default function RegisterScreen() {
               <View
                 style={[
                   styles.inputWrapper,
+                  { backgroundColor: colors.card, borderColor: colors.border },
                   emailError ? styles.inputError : null,
                 ]}
               >
                 <Mail
-                  color={emailError ? "#EF4444" : "#666"}
+                  color={emailError ? "#EF4444" : colors.muted}
                   size={20}
                   style={styles.inputIcon}
                 />
                 <TextInput
-                  style={styles.input}
+                  style={[styles.input, { color: colors.text }]}
                   placeholder="Alamat Email"
+                  placeholderTextColor={colors.muted}
                   value={email}
                   onChangeText={(text) => {
                     setEmail(text);
@@ -183,28 +188,33 @@ export default function RegisterScreen() {
 
             {/* Password */}
             <View>
-              <View style={styles.inputWrapper}>
-                <Lock color="#666" size={20} style={styles.inputIcon} />
+              <View style={[styles.inputWrapper, { backgroundColor: colors.card, borderColor: colors.border }]}>
+                <Lock color={colors.muted} size={20} style={styles.inputIcon} />
                 <TextInput
-                  style={styles.input}
+                  style={[styles.input, { color: colors.text }]}
                   placeholder="Kata Sandi"
+                  placeholderTextColor={colors.muted}
                   value={password}
                   onChangeText={validatePassword}
                   secureTextEntry={!showPassword}
+                  autoCapitalize="none"
+                  textContentType="password"
+                  autoCorrect={false}
+                  spellCheck={false}
                 />
                 <TouchableOpacity
                   onPress={() => setShowPassword(!showPassword)}
                 >
                   {showPassword ? (
-                    <EyeOff color="#666" size={20} />
+                    <EyeOff color={colors.muted} size={20} />
                   ) : (
-                    <Eye color="#666" size={20} />
+                    <Eye color={colors.muted} size={20} />
                   )}
                 </TouchableOpacity>
               </View>
 
               <View style={styles.reqContainer}>
-                <Text style={styles.reqTitle}>Syarat Kata Sandi:</Text>
+                <Text style={[styles.reqTitle, { color: colors.secondary }]}>Syarat Kata Sandi:</Text>
                 <RequirementItem
                   met={passwordCriteria.minLength}
                   text="Minimal 8 karakter"
@@ -226,7 +236,7 @@ export default function RegisterScreen() {
 
             {/* Tombol Daftar */}
             <TouchableOpacity
-              style={[styles.button, !isFormValid && styles.buttonDisabled]}
+              style={[styles.button, { backgroundColor: colors.primary }, !isFormValid && styles.buttonDisabled]}
               onPress={handleRegister}
               disabled={loading || !isFormValid}
             >
@@ -238,10 +248,10 @@ export default function RegisterScreen() {
             </TouchableOpacity>
 
             <View style={styles.footer}>
-              <Text style={{ color: "#666" }}>Sudah punya akun? </Text>
+              <Text style={{ color: colors.secondary }}>Sudah punya akun? </Text>
               <Link href="/login" asChild>
                 <TouchableOpacity>
-                  <Text style={styles.link}>Masuk disini</Text>
+                  <Text style={[styles.link, { color: colors.primary }]}>Masuk disini</Text>
                 </TouchableOpacity>
               </Link>
             </View>

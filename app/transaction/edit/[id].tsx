@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from "react";
+import React, { useState, useMemo, useEffect } from "react";
 import {
   View,
   Text,
@@ -15,9 +15,9 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { transactionService } from "../../src/services/transaction.service";
-import { categoryService } from "../../src/services/category.service";
-import { useRouter } from "expo-router";
+import { transactionService } from "../../../src/services/transaction.service";
+import { categoryService } from "../../../src/services/category.service";
+import { useRouter, useLocalSearchParams } from "expo-router";
 import { 
   Plus, 
   Trash2, 
@@ -37,10 +37,9 @@ import {
   Music,
   Book,
   MoreHorizontal,
-  Camera,
-  Image as ImageIcon,
+  ArrowLeft,
 } from "lucide-react-native";
-import * as ImagePicker from "expo-image-picker";
+import { useTheme } from "../../../src/context/ThemeContext";
 
 // Map icon strings to Lucide components
 const IconMap: Record<string, any> = {
@@ -85,11 +84,12 @@ type Discount = {
   value: string;
 };
 
-import { useTheme } from "../../src/context/ThemeContext";
-
-export default function ScanScreen() {
+export default function EditTransactionScreen() {
+  const { id } = useLocalSearchParams();
   const router = useRouter();
   const queryClient = useQueryClient();
+  const { colors, theme } = useTheme();
+
   const [transactionTitle, setTransactionTitle] = useState("");
   const [items, setItems] = useState<TransactionItem[]>([
     { name: "", price: "", qty: "1" },
@@ -105,7 +105,6 @@ export default function ScanScreen() {
   const [customDiscountName, setCustomDiscountName] = useState("");
   const [customDiscountType, setCustomDiscountType] = useState<'PERCENT' | 'NOMINAL'>('PERCENT');
   const [customDiscountValue, setCustomDiscountValue] = useState("");
-  const { colors, theme } = useTheme();
   
   // Category Selection State
   const [categoryModalVisible, setCategoryModalVisible] = useState(false);
@@ -116,109 +115,50 @@ export default function ScanScreen() {
     queryFn: categoryService.getCategories,
   });
 
-  const [isScanning, setIsScanning] = useState(false);
+  const { data: transaction, isLoading: isLoadingTransaction } = useQuery({
+    queryKey: ["transaction", id],
+    queryFn: () => transactionService.getTransactionById(Number(id)),
+    enabled: !!id,
+  });
 
-  const handleScanReceipt = async (useCamera: boolean) => {
-    try {
-      let result;
-      if (useCamera) {
-        const permission = await ImagePicker.requestCameraPermissionsAsync();
-        if (!permission.granted) {
-          Alert.alert("Izin diperlukan", "Mohon izinkan akses kamera untuk scan struk");
-          return;
-        }
-        result = await ImagePicker.launchCameraAsync({
-          mediaTypes: ImagePicker.MediaTypeOptions.Images,
-          quality: 0.7,
-          allowsEditing: true,
-        });
-      } else {
-        result = await ImagePicker.launchImageLibraryAsync({
-          mediaTypes: ImagePicker.MediaTypeOptions.Images,
-          quality: 0.7,
-          allowsMultipleSelection: true, // Enable multiple selection
-          selectionLimit: 5, // Limit to 5 images
-        });
+  useEffect(() => {
+    if (transaction?.data) {
+      const tx = transaction.data;
+      setTransactionTitle(tx.rawOcrText || "");
+      
+      if (tx.items && tx.items.length > 0) {
+        const mappedItems = tx.items.map((item: any) => ({
+          name: item.name,
+          price: String(item.price),
+          qty: String(item.qty),
+          categoryId: item.category?.id,
+          categoryName: item.category?.name,
+          basePrice: item.basePrice ? String(item.basePrice) : undefined,
+          discountType: item.discountType,
+          discountValue: item.discountValue ? String(item.discountValue) : undefined,
+        }));
+        setItems(mappedItems);
       }
 
-      if (!result.canceled && result.assets.length > 0) {
-        setIsScanning(true);
-        try {
-          const uris = result.assets.map((asset) => asset.uri);
-          const data = await transactionService.scanReceipt(uris);
-          
-          if (data.data) {
-            const { merchantName, totalAmount, items: scannedItems } = data.data;
-            
-            if (merchantName) setTransactionTitle(merchantName);
-            
-            // Map scanned items to form items
-            if (scannedItems && scannedItems.length > 0) {
-              const newItems = scannedItems.map((item: any) => {
-                let categoryId;
-                let categoryName;
-
-                if (item.categoryName && categories?.data) {
-                   const matchedCategory = categories.data.find(
-                     (c: any) => c.name.toLowerCase() === item.categoryName.toLowerCase()
-                   );
-                   if (matchedCategory) {
-                     categoryId = matchedCategory.id;
-                     categoryName = matchedCategory.name;
-                   }
-                }
-
-                return {
-                  name: item.name || "",
-                  price: item.price ? String(item.price) : "",
-                  qty: item.qty ? String(item.qty) : "1",
-                  categoryId,
-                  categoryName,
-                  basePrice: item.basePrice ? String(item.basePrice) : undefined,
-                  discountType: item.discountType,
-                  discountValue: item.discountValue ? String(item.discountValue) : undefined,
-                };
-              });
-              setItems(newItems);
-            } else if (totalAmount) {
-              // If no items found but total exists, create one item
-              setItems([{ name: "Total Purchase", price: String(totalAmount), qty: "1" }]);
-            }
-
-            if (data.data.fees && data.data.fees.length > 0) {
-              const newFees = data.data.fees.map((fee: any) => ({
-                name: fee.name,
-                amount: String(fee.amount),
-              }));
-              setFees(newFees);
-            }
-
-            if (data.data.discounts && data.data.discounts.length > 0) {
-              const newDiscounts = data.data.discounts.map((discount: any) => ({
-                name: discount.name,
-                amount: String(discount.amount),
-                type: discount.type,
-                value: String(discount.value),
-              }));
-              setDiscounts(newDiscounts);
-            }
-            
-            Alert.alert("Berhasil", "Struk berhasil discan!");
-          } else {
-            Alert.alert("Data Tidak Terdeteksi", "Gagal mengekstrak detail transaksi. Silakan coba lagi dengan gambar yang lebih jelas atau input manual.");
-          }
-        } catch (error) {
-          console.error(error);
-          Alert.alert("Gagal", "Gagal scan struk. Silakan coba lagi.");
-        } finally {
-          setIsScanning(false);
-        }
+      if (tx.fees && tx.fees.length > 0) {
+        const mappedFees = tx.fees.map((fee: any) => ({
+          name: fee.name,
+          amount: String(fee.amount),
+        }));
+        setFees(mappedFees);
       }
-    } catch (error) {
-      console.error(error);
-      setIsScanning(false);
+
+      if (tx.discounts && tx.discounts.length > 0) {
+        const mappedDiscounts = tx.discounts.map((discount: any) => ({
+          name: discount.name,
+          amount: String(discount.amount),
+          type: discount.type,
+          value: String(discount.value),
+        }));
+        setDiscounts(mappedDiscounts);
+      }
     }
-  };
+  }, [transaction]);
 
   const totalAmount = useMemo(() => {
     const itemsTotal = items.reduce((sum, item) => {
@@ -239,6 +179,78 @@ export default function ScanScreen() {
 
     return Math.max(0, subTotal - discountsTotal);
   }, [items, fees, discounts]);
+
+  // Validation Logic
+  const isFormValid = useMemo(() => {
+    const isTitleValid = transactionTitle.trim().length > 0;
+    const areItemsValid = items.every(
+      (item) => 
+        item.name.trim().length > 0 && 
+        item.price !== "" && Number(item.price) !== 0 &&
+        Number(item.qty) > 0
+    );
+    return isTitleValid && areItemsValid;
+  }, [transactionTitle, items]);
+
+  const mutation = useMutation({
+    mutationFn: async (itemsData: TransactionItem[]) => {
+      const formData = new FormData();
+      formData.append("totalAmount", totalAmount.toString());
+      // Keep original type or allow changing? For now assume MANUAL or keep original if we had it.
+      // But update endpoint might not need type if we don't change it.
+      // Let's send what we have.
+      formData.append("rawOcrText", transactionTitle);
+      
+      const formattedItems = itemsData.map(item => ({
+        name: item.name,
+        price: Number(item.price),
+        qty: Number(item.qty),
+        categoryId: item.categoryId,
+        basePrice: item.basePrice ? Number(item.basePrice) : undefined,
+        discountType: item.discountType,
+        discountValue: item.discountValue ? Number(item.discountValue) : undefined,
+      }));
+
+      const formattedFees = fees.map(fee => ({
+        name: fee.name,
+        amount: Number(fee.amount),
+      }));
+
+      const formattedDiscounts = discounts.map(discount => ({
+        name: discount.name,
+        amount: Number(discount.amount),
+        type: discount.type,
+        value: Number(discount.value),
+      }));
+
+      formData.append("items", JSON.stringify(formattedItems));
+      formData.append("fees", JSON.stringify(formattedFees));
+      formData.append("discounts", JSON.stringify(formattedDiscounts));
+
+      return transactionService.updateTransaction(Number(id), formData);
+    },
+    onSuccess: () => {
+      Alert.alert("Berhasil", "Transaksi berhasil diperbarui");
+      queryClient.invalidateQueries({ queryKey: ["transactions"] });
+      queryClient.invalidateQueries({ queryKey: ["transaction", id] });
+      queryClient.invalidateQueries({ queryKey: ["recentTransactions"] });
+      queryClient.invalidateQueries({ queryKey: ["monthlyStats"] });
+      router.back();
+    },
+    onError: (error: any) => {
+      Alert.alert("Gagal", error.response?.data?.message || "Gagal memperbarui transaksi");
+    },
+  });
+
+  const handleAddItem = () => {
+    setItems([...items, { name: "", price: "", qty: "1" }]);
+  };
+
+  const handleRemoveItem = (index: number) => {
+    if (items.length === 1) return;
+    const newItems = items.filter((_, i) => i !== index);
+    setItems(newItems);
+  };
 
   const handleAddFee = () => {
     if (customFeeName && customFeeAmount) {
@@ -288,78 +300,6 @@ export default function ScanScreen() {
     setDiscounts(newDiscounts);
   };
 
-  // Validation Logic
-  const isFormValid = useMemo(() => {
-    const isTitleValid = transactionTitle.trim().length > 0;
-    const areItemsValid = items.every(
-      (item) => 
-        item.name.trim().length > 0 && 
-        item.price !== "" && Number(item.price) !== 0 &&
-        Number(item.qty) > 0
-    );
-    return isTitleValid && areItemsValid;
-  }, [transactionTitle, items]);
-
-  const mutation = useMutation({
-    mutationFn: async (itemsData: TransactionItem[]) => {
-      const formData = new FormData();
-      formData.append("totalAmount", totalAmount.toString());
-      formData.append("type", "MANUAL");
-      // Use rawOcrText to store the transaction title/description
-      formData.append("rawOcrText", transactionTitle);
-      
-      const formattedItems = itemsData.map(item => ({
-        name: item.name,
-        price: Number(item.price),
-        qty: Number(item.qty),
-        categoryId: item.categoryId,
-        basePrice: item.basePrice ? Number(item.basePrice) : undefined,
-        discountType: item.discountType,
-        discountValue: item.discountValue ? Number(item.discountValue) : undefined,
-      }));
-
-      const formattedFees = fees.map(fee => ({
-        name: fee.name,
-        amount: Number(fee.amount),
-      }));
-
-      const formattedDiscounts = discounts.map(discount => ({
-        name: discount.name,
-        amount: Number(discount.amount),
-        type: discount.type,
-        value: Number(discount.value),
-      }));
-
-      formData.append("items", JSON.stringify(formattedItems));
-      formData.append("fees", JSON.stringify(formattedFees));
-      formData.append("discounts", JSON.stringify(formattedDiscounts));
-
-      return transactionService.createTransaction(formData);
-    },
-    onSuccess: () => {
-      Alert.alert("Berhasil", "Transaksi berhasil ditambahkan");
-      setItems([{ name: "", price: "", qty: "1" }]);
-      setTransactionTitle("");
-      queryClient.invalidateQueries({ queryKey: ["transactions"] });
-      queryClient.invalidateQueries({ queryKey: ["recentTransactions"] });
-      queryClient.invalidateQueries({ queryKey: ["monthlyStats"] });
-      router.push("/(tabs)");
-    },
-    onError: (error: any) => {
-      Alert.alert("Gagal", error.response?.data?.message || "Gagal menambahkan transaksi");
-    },
-  });
-
-  const handleAddItem = () => {
-    setItems([...items, { name: "", price: "", qty: "1" }]);
-  };
-
-  const handleRemoveItem = (index: number) => {
-    if (items.length === 1) return;
-    const newItems = items.filter((_, i) => i !== index);
-    setItems(newItems);
-  };
-
   const handleUpdateItem = (index: number, field: keyof TransactionItem, value: string | number) => {
     const newItems = [...items];
     let item = { ...newItems[index] };
@@ -399,7 +339,6 @@ export default function ScanScreen() {
       item.discountType = undefined;
       item.discountValue = undefined;
       item.basePrice = undefined;
-      // Price remains as is (or should it revert? Let's keep it as is)
     } else {
       // Add Discount
       item.discountType = 'PERCENT';
@@ -452,6 +391,14 @@ export default function ScanScreen() {
     return <IconComponent size={24} color={colors.text} />;
   };
 
+  if (isLoadingTransaction) {
+    return (
+      <View style={[styles.loadingContainer, { backgroundColor: colors.background }]}>
+        <ActivityIndicator size="large" color={colors.primary} />
+      </View>
+    );
+  }
+
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>
       <KeyboardAvoidingView
@@ -459,26 +406,12 @@ export default function ScanScreen() {
         style={{ flex: 1 }}
       >
         <ScrollView contentContainerStyle={styles.scrollContent}>
-          <Text style={[styles.title, { color: colors.text }]}>Tambah Transaksi</Text>
-
-          <View style={styles.scanButtonsContainer}>
-            <TouchableOpacity 
-              style={[styles.scanButton, { backgroundColor: colors.card, borderColor: colors.border }]}
-              onPress={() => handleScanReceipt(true)}
-              disabled={isScanning}
-            >
-              {isScanning ? <ActivityIndicator size="small" color={colors.primary} /> : <Camera size={20} color={colors.primary} />}
-              <Text style={[styles.scanButtonText, { color: colors.text }]}>Scan Struk</Text>
+          <View style={styles.header}>
+            <TouchableOpacity onPress={() => router.back()} style={styles.headerButton}>
+              <ArrowLeft size={24} color={colors.text} />
             </TouchableOpacity>
-            
-            <TouchableOpacity 
-              style={[styles.scanButton, { backgroundColor: colors.card, borderColor: colors.border }]}
-              onPress={() => handleScanReceipt(false)}
-              disabled={isScanning}
-            >
-              {isScanning ? <ActivityIndicator size="small" color={colors.primary} /> : <ImageIcon size={20} color={colors.primary} />}
-              <Text style={[styles.scanButtonText, { color: colors.text }]}>Upload Gambar</Text>
-            </TouchableOpacity>
+            <Text style={[styles.title, { color: colors.text }]}>Edit Transaksi</Text>
+            <View style={{ width: 24 }} />
           </View>
 
           <View style={styles.mainFormGroup}>
@@ -517,6 +450,7 @@ export default function ScanScreen() {
               </View>
 
               <View style={styles.row}>
+
                 <View style={[styles.formGroup, { flex: 2, marginRight: 12 }]}>
                   <Text style={[styles.label, { color: colors.secondary }]}>
                     {item.discountType ? "Harga Akhir (Rp)" : "Harga (Rp)"}
@@ -700,7 +634,7 @@ export default function ScanScreen() {
               {mutation.isPending ? (
                 <ActivityIndicator color="#fff" />
               ) : (
-                <Text style={styles.submitButtonText}>Simpan Transaksi</Text>
+                <Text style={styles.submitButtonText}>Perbarui Transaksi</Text>
               )}
             </TouchableOpacity>
           </View>
@@ -805,17 +739,17 @@ export default function ScanScreen() {
         <View style={styles.modalContainer}>
           <View style={[styles.modalContent, { backgroundColor: colors.card }]}>
             <View style={styles.modalHeader}>
-              <Text style={[styles.modalTitle, { color: colors.text }]}>Add Global Discount</Text>
+              <Text style={[styles.modalTitle, { color: colors.text }]}>Tambah Diskon Global</Text>
               <TouchableOpacity onPress={() => setDiscountModalVisible(false)}>
-                <Text style={[styles.closeButton, { color: colors.primary }]}>Close</Text>
+                <Text style={[styles.closeButton, { color: colors.primary }]}>Tutup</Text>
               </TouchableOpacity>
             </View>
             
             <View style={styles.formGroup}>
-              <Text style={[styles.label, { color: colors.secondary }]}>Discount Name</Text>
+              <Text style={[styles.label, { color: colors.secondary }]}>Nama Diskon</Text>
               <TextInput
                 style={[styles.input, { backgroundColor: colors.background, borderColor: colors.border, color: colors.text }]}
-                placeholder="e.g. Voucher, Promo Code"
+                placeholder="Contoh: Voucher, Kode Promo"
                 placeholderTextColor={colors.muted}
                 value={customDiscountName}
                 onChangeText={setCustomDiscountName}
@@ -824,7 +758,7 @@ export default function ScanScreen() {
 
             <View style={styles.row}>
               <View style={[styles.formGroup, { flex: 1, marginRight: 12 }]}>
-                <Text style={[styles.label, { color: colors.secondary }]}>Type</Text>
+                <Text style={[styles.label, { color: colors.secondary }]}>Tipe</Text>
                 <View style={{ flexDirection: 'row', borderWidth: 1, borderColor: colors.border, borderRadius: 8, overflow: 'hidden' }}>
                   <TouchableOpacity 
                     style={{ flex: 1, padding: 12, backgroundColor: customDiscountType === 'PERCENT' ? colors.primary : colors.card, alignItems: 'center' }}
@@ -842,7 +776,7 @@ export default function ScanScreen() {
               </View>
 
               <View style={[styles.formGroup, { flex: 2 }]}>
-                <Text style={[styles.label, { color: colors.secondary }]}>Value</Text>
+                <Text style={[styles.label, { color: colors.secondary }]}>Nilai</Text>
                 <TextInput
                   style={[styles.input, { backgroundColor: colors.background, borderColor: colors.border, color: colors.text }]}
                   placeholder="0"
@@ -858,7 +792,7 @@ export default function ScanScreen() {
               style={[styles.submitButton, { backgroundColor: colors.primary, marginTop: 16 }]}
               onPress={handleAddDiscount}
             >
-              <Text style={styles.submitButtonText}>Add Discount</Text>
+              <Text style={styles.submitButtonText}>Tambah Diskon</Text>
             </TouchableOpacity>
           </View>
         </View>
@@ -871,14 +805,27 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
   },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+  },
   scrollContent: {
     padding: 20,
     paddingBottom: 100,
   },
+  header: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginBottom: 24,
+  },
+  headerButton: {
+    padding: 4,
+  },
   title: {
     fontSize: 24,
     fontWeight: "bold",
-    marginBottom: 24,
   },
   sectionTitle: {
     fontSize: 18,
@@ -1023,24 +970,5 @@ const styles = StyleSheet.create({
   },
   categoryItemName: {
     fontSize: 16,
-  },
-  scanButtonsContainer: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    marginBottom: 24,
-  },
-  scanButton: {
-    flex: 1,
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    padding: 12,
-    borderRadius: 8,
-    borderWidth: 1,
-    marginHorizontal: 4,
-  },
-  scanButtonText: {
-    marginLeft: 8,
-    fontWeight: "600",
   },
 });

@@ -15,9 +15,11 @@ import {
 } from "react-native";
 
 import { useAuth } from "../../src/context/AuthContext";
+import { useTheme } from "../../src/context/ThemeContext";
 import api from "../../src/services/api";
 
 export default function LoginScreen() {
+  const { colors, theme } = useTheme();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
@@ -74,7 +76,7 @@ export default function LoginScreen() {
   return (
     <KeyboardAvoidingView
       behavior={Platform.OS === "ios" ? "padding" : undefined}
-      style={styles.container}
+      style={[styles.container, { backgroundColor: colors.background }]}
     >
       <ScrollView
         contentContainerStyle={styles.scrollContent}
@@ -82,8 +84,8 @@ export default function LoginScreen() {
       >
         <View style={styles.innerContainer}>
           <View style={styles.header}>
-            <Text style={styles.title}>Selamat Datang!</Text>
-            <Text style={styles.subtitle}>
+            <Text style={[styles.title, { color: colors.primary }]}>Selamat Datang!</Text>
+            <Text style={[styles.subtitle, { color: colors.secondary }]}>
               Masuk untuk kelola pengeluaran keluarga.
             </Text>
           </View>
@@ -94,17 +96,19 @@ export default function LoginScreen() {
               <View
                 style={[
                   styles.inputWrapper,
+                  { backgroundColor: colors.card, borderColor: colors.border },
                   emailError ? styles.inputError : null,
                 ]}
               >
                 <Mail
-                  color={emailError ? "#EF4444" : "#666"}
+                  color={emailError ? "#EF4444" : colors.muted}
                   size={20}
                   style={styles.inputIcon}
                 />
                 <TextInput
-                  style={styles.input}
+                  style={[styles.input, { color: colors.text }]}
                   placeholder="Alamat Email"
+                  placeholderTextColor={colors.muted}
                   value={email}
                   onChangeText={(text) => {
                     setEmail(text);
@@ -122,27 +126,32 @@ export default function LoginScreen() {
             </View>
 
             {/* Password Input */}
-            <View style={styles.inputWrapper}>
-              <Lock color="#666" size={20} style={styles.inputIcon} />
+            <View style={[styles.inputWrapper, { backgroundColor: colors.card, borderColor: colors.border }]}>
+              <Lock color={colors.muted} size={20} style={styles.inputIcon} />
               <TextInput
-                style={styles.input}
+                style={[styles.input, { color: colors.text }]}
                 placeholder="Kata Sandi"
+                placeholderTextColor={colors.muted}
                 value={password}
                 onChangeText={setPassword}
                 secureTextEntry={!showPassword}
+                autoCapitalize="none"
+                textContentType="password"
+                autoCorrect={false}
+                spellCheck={false}
               />
               <TouchableOpacity onPress={() => setShowPassword(!showPassword)}>
                 {showPassword ? (
-                  <EyeOff color="#666" size={20} />
+                  <EyeOff color={colors.muted} size={20} />
                 ) : (
-                  <Eye color="#666" size={20} />
+                  <Eye color={colors.muted} size={20} />
                 )}
               </TouchableOpacity>
             </View>
 
             {/* Tombol Masuk */}
             <TouchableOpacity
-              style={[styles.button, !isFormValid && styles.buttonDisabled]}
+              style={[styles.button, { backgroundColor: colors.primary }, !isFormValid && styles.buttonDisabled]}
               onPress={handleLogin}
               disabled={loading || !isFormValid}
             >
@@ -154,10 +163,10 @@ export default function LoginScreen() {
             </TouchableOpacity>
 
             <View style={styles.footer}>
-              <Text style={{ color: "#666" }}>Belum punya akun? </Text>
+              <Text style={{ color: colors.secondary }}>Belum punya akun? </Text>
               <Link href="/register" asChild>
                 <TouchableOpacity>
-                  <Text style={styles.link}>Daftar Sekarang</Text>
+                  <Text style={[styles.link, { color: colors.primary }]}>Daftar Sekarang</Text>
                 </TouchableOpacity>
               </Link>
             </View>

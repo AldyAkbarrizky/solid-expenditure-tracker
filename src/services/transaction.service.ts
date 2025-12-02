@@ -9,6 +9,7 @@ export const transactionService = {
     family?: boolean;
     itemName?: string;
     categoryId?: number;
+    filterUserId?: number;
   }) {
     const response = await api.get<ApiResponse<Transaction[]> & { results: number }>(
       "/transactions",
@@ -44,6 +45,37 @@ export const transactionService = {
 
   async deleteTransaction(id: number) {
     const response = await api.delete<ApiResponse<null>>(`/transactions/${id}`);
+    return response.data;
+  },
+
+  async updateTransaction(id: number, data: FormData) {
+    const response = await api.put<ApiResponse<Transaction>>(
+      `/transactions/${id}`,
+      data,
+      {
+        headers: {
+          "Content-Type": "multipart/form-data",
+        },
+      }
+    );
+    return response.data;
+  },
+
+  async scanReceipt(imageUris: string[]) {
+    const formData = new FormData();
+    imageUris.forEach((uri, index) => {
+      formData.append("images", {
+        uri: uri,
+        name: `receipt_${index}.jpg`,
+        type: "image/jpeg",
+      } as any);
+    });
+
+    const response = await api.post("/ocr/scan", formData, {
+      headers: {
+        "Content-Type": "multipart/form-data",
+      },
+    });
     return response.data;
   },
 };

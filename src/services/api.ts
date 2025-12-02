@@ -1,7 +1,8 @@
 import axios from "axios";
 import * as SecureStore from "expo-secure-store";
 
-const BASE_URL = "https://expenditure-api.solidtechno.com/api";
+// const BASE_URL = "https://expenditure-api.solidtechno.com/api";
+const BASE_URL = "http://10.10.10.115:8000/api";
 
 const api = axios.create({
   baseURL: BASE_URL,

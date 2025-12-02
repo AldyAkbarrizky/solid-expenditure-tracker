@@ -1,4 +1,4 @@
-import React, { useCallback } from "react";
+import React, { useCallback, useState } from "react";
 import {
   View,
   Text,
@@ -7,6 +7,7 @@ import {
   RefreshControl,
   TouchableOpacity,
   ActivityIndicator,
+  Image
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useAuth } from "../../src/context/AuthContext";
@@ -20,21 +21,26 @@ import {
   TrendingUp,
   Wallet,
   Plus,
+  History,
 } from "lucide-react-native";
 import { useRouter } from "expo-router";
+
+import { useTheme } from "../../src/context/ThemeContext";
 
 export default function Dashboard() {
   const { user } = useAuth();
   const router = useRouter();
   const queryClient = useQueryClient();
+  const { colors, theme } = useTheme();
+  const [isFamily, setIsFamily] = useState(false);
 
   const {
     data: stats,
     isLoading: statsLoading,
     refetch: refetchStats,
   } = useQuery({
-    queryKey: ["monthlyStats"],
-    queryFn: statsService.getMonthlyStats,
+    queryKey: ["monthlyStats", isFamily],
+    queryFn: () => statsService.getMonthlyStats(isFamily),
   });
 
   const {
@@ -42,8 +48,8 @@ export default function Dashboard() {
     isLoading: transactionsLoading,
     refetch: refetchTransactions,
   } = useQuery({
-    queryKey: ["recentTransactions"],
-    queryFn: transactionService.getRecentTransactions,
+    queryKey: ["recentTransactions", isFamily],
+    queryFn: () => transactionService.getTransactions({ limit: 5, family: isFamily }),
   });
 
   const onRefresh = useCallback(() => {
@@ -63,90 +69,120 @@ export default function Dashboard() {
   const isLoading = statsLoading || transactionsLoading;
 
   return (
-    <SafeAreaView style={styles.container}>
+    <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>
       <ScrollView
         contentContainerStyle={styles.scrollContent}
         refreshControl={
-          <RefreshControl refreshing={isLoading} onRefresh={onRefresh} />
+          <RefreshControl refreshing={isLoading} onRefresh={onRefresh} tintColor={colors.primary} />
         }
       >
         {/* Header */}
         <View style={styles.header}>
           <View>
-            <Text style={styles.greeting}>Hello,</Text>
-            <Text style={styles.userName}>{user?.name || "User"}</Text>
+            <Text style={[styles.greeting, { color: colors.secondary }]}>Halo,</Text>
+            <Text style={[styles.userName, { color: colors.text }]}>{user?.name || "User"}</Text>
           </View>
-          <TouchableOpacity 
-            style={styles.avatarPlaceholder}
-            onPress={() => router.push("/(tabs)/profile")}
-          >
-            <Text style={styles.avatarText}>
-              {user?.name?.charAt(0).toUpperCase()}
-            </Text>
-          </TouchableOpacity>
+          
+          <View style={styles.headerRight}>
+            {user?.familyId && (
+              <View style={[styles.toggleContainer, { backgroundColor: colors.card, borderColor: colors.border }]}>
+                <TouchableOpacity 
+                  style={[styles.toggleButton, !isFamily && { backgroundColor: colors.primary }]}
+                  onPress={() => setIsFamily(false)}
+                >
+                  <Text style={[styles.toggleText, !isFamily ? { color: '#fff' } : { color: colors.secondary }]}>Saya</Text>
+                </TouchableOpacity>
+                <TouchableOpacity 
+                  style={[styles.toggleButton, isFamily && { backgroundColor: colors.primary }]}
+                  onPress={() => setIsFamily(true)}
+                >
+                  <Text style={[styles.toggleText, isFamily ? { color: '#fff' } : { color: colors.secondary }]}>Keluarga</Text>
+                </TouchableOpacity>
+              </View>
+            )}
+
+            <TouchableOpacity 
+              style={[styles.avatarPlaceholder, { backgroundColor: colors.card }]}
+              onPress={() => router.push("/(tabs)/profile")}
+            >
+              {user?.avatarUrl ? (
+                <Image 
+                  source={{ uri: user.avatarUrl }} 
+                  style={styles.avatarImage} 
+                />
+              ) : (
+                <Text style={[styles.avatarText, { color: colors.text }]}>
+                  {user?.name?.charAt(0).toUpperCase()}
+                </Text>
+              )}
+            </TouchableOpacity>
+          </View>
         </View>
 
         {/* Summary Card */}
-        <View style={styles.summaryCard}>
+        <View style={[styles.summaryCard, { backgroundColor: colors.primary, shadowColor: colors.primary }]}>
           <View style={styles.summaryHeader}>
-            <Text style={styles.summaryTitle}>Total Expense</Text>
+            <Text style={styles.summaryTitle}>{isFamily ? "Pengeluaran Keluarga" : "Pengeluaran Pribadi"}</Text>
             <TouchableOpacity 
               style={styles.quickAddButton}
               onPress={() => router.push("/(tabs)/scan")}
             >
               <Plus size={16} color="#FFFFFF" />
-              <Text style={styles.quickAddText}>Add</Text>
+              <Text style={styles.quickAddText}>Tambah</Text>
             </TouchableOpacity>
           </View>
           <Text style={styles.totalAmount}>
             {stats ? formatCurrency(stats.data.totalExpense) : "Rp 0"}
           </Text>
-          <Text style={styles.periodText}>This Month</Text>
+          <Text style={styles.periodText}>Bulan Ini</Text>
           <View style={styles.cardFooter}>
             <View style={styles.trendBadge}>
               <TrendingUp size={14} color="#FF6B6B" />
-              <Text style={styles.trendText}>+12% vs last month</Text>
+              <Text style={styles.trendText}>+12% vs bulan lalu</Text>
             </View>
           </View>
         </View>
 
-        {/* Quick Actions (Optional placeholder) */}
-        {/* <View style={styles.actionsRow}>
-          <TouchableOpacity style={styles.actionButton}>
-            <Text>Add Income</Text>
-          </TouchableOpacity>
-        </View> */}
-
         {/* Recent Transactions */}
         <View style={styles.section}>
           <View style={styles.sectionHeader}>
-            <Text style={styles.sectionTitle}>Recent Transactions</Text>
+            <Text style={[styles.sectionTitle, { color: colors.text }]}>Transaksi Terakhir</Text>
             <TouchableOpacity onPress={() => router.push("/(tabs)/history")}>
-              <Text style={styles.seeAll}>See All</Text>
+              <Text style={[styles.seeAll, { color: colors.primary }]}>Lihat Semua</Text>
             </TouchableOpacity>
           </View>
 
           {recentTransactions?.data?.length === 0 ? (
             <View style={styles.emptyState}>
-              <History size={48} color="#ccc" />
-              <Text style={styles.emptyText}>No transactions yet</Text>
+              <History size={48} color={colors.muted} />
+              <Text style={[styles.emptyText, { color: colors.muted }]}>Belum ada transaksi</Text>
             </View>
           ) : (
             recentTransactions?.data?.map((transaction) => (
-              <View key={transaction.id} style={styles.transactionItem}>
-                <View style={styles.transactionIcon}>
+              <TouchableOpacity 
+                key={transaction.id} 
+                style={[styles.transactionItem, { backgroundColor: colors.card }]}
+                onPress={() => router.push(`/transaction/${transaction.id}` as any)}
+              >
+                <View style={[styles.transactionIcon, { backgroundColor: theme === 'dark' ? '#343A40' : '#FFF5F5' }]}>
                   <TrendingDown size={20} color="#FF6B6B" />
                 </View>
                 <View style={styles.transactionDetails}>
-                  <Text style={styles.transactionTitle}>
-                    {transaction.items && transaction.items.length > 0
-                      ? transaction.items[0].name +
-                        (transaction.items.length > 1
-                          ? ` +${transaction.items.length - 1} others`
-                          : "")
-                      : "Transaction"}
-                  </Text>
-                  <Text style={styles.transactionDate}>
+                  <View style={styles.transactionHeader}>
+                    <Text 
+                      style={[styles.transactionTitle, { color: colors.text }]}
+                      numberOfLines={1}
+                      ellipsizeMode="tail"
+                    >
+                      {transaction.items && transaction.items.length > 0
+                        ? transaction.items[0].name +
+                          (transaction.items.length > 1
+                            ? ` +${transaction.items.length - 1} lainnya`
+                            : "")
+                        : "Transaksi"}
+                    </Text>
+                  </View>
+                  <Text style={[styles.transactionDate, { color: colors.secondary }]}>
                     {new Date(transaction.transactionDate).toLocaleDateString(
                       "id-ID",
                       {
@@ -157,11 +193,22 @@ export default function Dashboard() {
                       }
                     )}
                   </Text>
+                  {isFamily && transaction.user && (
+                    <View style={styles.userInfoRow}>
+                      <Image 
+                        source={{ uri: transaction.user.avatarUrl || `https://ui-avatars.com/api/?name=${transaction.user.name}&background=random` }}
+                        style={styles.miniAvatar}
+                      />
+                      <Text style={[styles.userNameSmall, { color: colors.secondary }]}>
+                        {transaction.user.name.split(' ')[0]}
+                      </Text>
+                    </View>
+                  )}
                 </View>
                 <Text style={styles.transactionAmount}>
                   -{formatCurrency(Number(transaction.totalAmount))}
                 </Text>
-              </View>
+              </TouchableOpacity>
             ))
           )}
         </View>
@@ -173,7 +220,6 @@ export default function Dashboard() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#F8F9FA",
   },
   scrollContent: {
     padding: 20,
@@ -186,33 +232,32 @@ const styles = StyleSheet.create({
   },
   greeting: {
     fontSize: 16,
-    color: "#6C757D",
   },
   userName: {
     fontSize: 24,
     fontWeight: "bold",
-    color: "#212529",
     marginBottom: 4,
   },
   avatarPlaceholder: {
     width: 40,
     height: 40,
     borderRadius: 20,
-    backgroundColor: "#E9ECEF",
     justifyContent: "center",
     alignItems: "center",
   },
   avatarText: {
     fontSize: 18,
     fontWeight: "bold",
-    color: "#495057",
+  },
+  avatarImage: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
   },
   summaryCard: {
-    backgroundColor: "#228BE6",
     borderRadius: 16,
     padding: 20,
     marginBottom: 24,
-    shadowColor: "#228BE6",
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.3,
     shadowRadius: 8,
@@ -283,16 +328,13 @@ const styles = StyleSheet.create({
   sectionTitle: {
     fontSize: 18,
     fontWeight: "bold",
-    color: "#212529",
   },
   seeAll: {
-    color: "#228BE6",
     fontSize: 14,
   },
   transactionItem: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: "#FFFFFF",
     padding: 16,
     borderRadius: 12,
     marginBottom: 12,
@@ -306,7 +348,6 @@ const styles = StyleSheet.create({
     width: 40,
     height: 40,
     borderRadius: 20,
-    backgroundColor: "#FFF5F5",
     justifyContent: "center",
     alignItems: "center",
     marginRight: 12,
@@ -317,12 +358,11 @@ const styles = StyleSheet.create({
   transactionTitle: {
     fontSize: 16,
     fontWeight: "600",
-    color: "#212529",
-    marginBottom: 4,
+    flex: 1, // Allow title to take available space
+    marginRight: 8, // Add spacing between title and avatar
   },
   transactionDate: {
     fontSize: 12,
-    color: "#ADB5BD",
   },
   transactionAmount: {
     fontSize: 16,
@@ -335,6 +375,46 @@ const styles = StyleSheet.create({
   },
   emptyText: {
     marginTop: 12,
-    color: "#ADB5BD",
+  },
+  headerRight: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  toggleContainer: {
+    flexDirection: 'row',
+    borderRadius: 24,
+    borderWidth: 1,
+    padding: 4,
+  },
+  toggleButton: {
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 10,
+  },
+  toggleText: {
+    fontSize: 12,
+    fontWeight: '600',
+  },
+  transactionHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingRight: 8,
+    marginBottom: 4,
+  },
+  miniAvatar: {
+    width: 16,
+    height: 16,
+    borderRadius: 8,
+    marginRight: 4,
+  },
+  userInfoRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 4,
+  },
+  userNameSmall: {
+    fontSize: 12,
   },
 });

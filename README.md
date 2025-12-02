@@ -7,7 +7,11 @@ Aplikasi pelacakan pengeluaran komprehensif yang dibangun dengan React Native (E
 - **Dashboard**: Lihat statistik pengeluaran bulanan dan transaksi terbaru.
 - **Tambah Transaksi**: Tambahkan transaksi dengan mudah dengan dukungan untuk banyak item, kategori, dan pemindaian struk (OCR).
 - **Riwayat**: Lihat riwayat transaksi dengan filter canggih (Tanggal, Kategori, Pencarian).
+- **Family Features**: Buat atau gabung keluarga, lihat pengeluaran bersama, dan identifikasi siapa yang bertransaksi.
 - **Profil**: Kelola profil pengguna dan pengaturan.
+- **Mode Gelap**: Dukungan penuh untuk tema gelap (Dark Mode) yang nyaman di mata.
+- **Lokalisasi**: Antarmuka pengguna sepenuhnya dalam Bahasa Indonesia.
+- **Diskon Global**: Terapkan diskon (persen atau nominal) pada total transaksi.
 
 ## Teknologi yang Digunakan
 
