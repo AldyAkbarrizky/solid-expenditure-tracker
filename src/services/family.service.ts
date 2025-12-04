@@ -18,4 +18,18 @@ export const familyService = {
     const response = await api.get<ApiResponse<FamilyMembersResponse>>("/families/members");
     return response.data;
   },
+
+  async kickMember(userId: number) {
+    const response = await api.delete<ApiResponse<void>>(`/families/members/${userId}`);
+    return response.data;
+  },
+
+  async updateFamily(data: FormData) {
+    const response = await api.put<ApiResponse<Family>>("/families/profile", data, {
+      headers: {
+        "Content-Type": "multipart/form-data",
+      },
+    });
+    return response.data;
+  },
 };

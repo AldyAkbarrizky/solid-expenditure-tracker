@@ -39,8 +39,10 @@ import {
   MoreHorizontal,
   Camera,
   Image as ImageIcon,
+  Calendar,
 } from "lucide-react-native";
 import * as ImagePicker from "expo-image-picker";
+import DateTimePicker from "@react-native-community/datetimepicker";
 
 // Map icon strings to Lucide components
 const IconMap: Record<string, any> = {
@@ -66,6 +68,7 @@ type TransactionItem = {
   name: string;
   price: string;
   qty: string;
+  unit?: string;
   categoryId?: number;
   categoryName?: string;
   basePrice?: string;
@@ -76,6 +79,13 @@ type TransactionItem = {
 type Fee = {
   name: string;
   amount: string;
+};
+
+type Tax = {
+  name: string;
+  amount: string;
+  type: 'PERCENT' | 'NOMINAL';
+  value: string;
 };
 
 type Discount = {
@@ -91,13 +101,22 @@ export default function ScanScreen() {
   const router = useRouter();
   const queryClient = useQueryClient();
   const [transactionTitle, setTransactionTitle] = useState("");
+  const [transactionDate, setTransactionDate] = useState(new Date());
+  const [showDatePicker, setShowDatePicker] = useState(false);
   const [items, setItems] = useState<TransactionItem[]>([
-    { name: "", price: "", qty: "1" },
+    { name: "", price: "", qty: "1", unit: "pcs" },
   ]);
   const [fees, setFees] = useState<Fee[]>([]);
   const [feeModalVisible, setFeeModalVisible] = useState(false);
   const [customFeeName, setCustomFeeName] = useState("");
   const [customFeeAmount, setCustomFeeAmount] = useState("");
+
+  // Tax State
+  const [taxes, setTaxes] = useState<Tax[]>([]);
+  const [taxModalVisible, setTaxModalVisible] = useState(false);
+  const [customTaxName, setCustomTaxName] = useState("");
+  const [customTaxType, setCustomTaxType] = useState<'PERCENT' | 'NOMINAL'>('PERCENT');
+  const [customTaxValue, setCustomTaxValue] = useState("");
   
   // Global Discount State
   const [discounts, setDiscounts] = useState<Discount[]>([]);
@@ -110,6 +129,11 @@ export default function ScanScreen() {
   // Category Selection State
   const [categoryModalVisible, setCategoryModalVisible] = useState(false);
   const [activeItemIndex, setActiveItemIndex] = useState<number | null>(null);
+  
+  // Unit Selection State
+  const [unitModalVisible, setUnitModalVisible] = useState(false);
+  const [activeUnitItemIndex, setActiveUnitItemIndex] = useState<number | null>(null);
+  const UNIT_OPTIONS = ["pcs", "kg", "gr", "liter", "ml", "box", "pack", "lusin", "kodi", "porsi", "bungkus", "botol", "kaleng", "lembar", "pasang", "set"];
 
   const { data: categories } = useQuery({
     queryKey: ["categories"],
@@ -231,14 +255,18 @@ export default function ScanScreen() {
       return sum + (Number(fee.amount) || 0);
     }, 0);
 
-    const subTotal = itemsTotal + feesTotal;
+    const taxesTotal = taxes.reduce((sum, tax) => {
+      return sum + (Number(tax.amount) || 0);
+    }, 0);
+
+    const subTotal = itemsTotal + feesTotal + taxesTotal;
 
     const discountsTotal = discounts.reduce((sum, discount) => {
       return sum + (Number(discount.amount) || 0);
     }, 0);
 
     return Math.max(0, subTotal - discountsTotal);
-  }, [items, fees, discounts]);
+  }, [items, fees, taxes, discounts]);
 
   const handleAddFee = () => {
     if (customFeeName && customFeeAmount) {
@@ -254,16 +282,52 @@ export default function ScanScreen() {
     setFees(newFees);
   };
 
+  const handleAddTax = () => {
+    if (customTaxName && customTaxValue) {
+      let amount = 0;
+      const val = Number(customTaxValue);
+      
+      if (customTaxType === 'PERCENT') {
+        const itemsTotal = items.reduce((sum, item) => sum + (Number(item.price) || 0) * (Number(item.qty) || 0), 0);
+        const feesTotal = fees.reduce((sum, fee) => sum + (Number(fee.amount) || 0), 0);
+        // Tax usually applies to subtotal before discount? Or after? Usually before.
+        // Let's assume tax is on items + fees.
+        const subTotal = itemsTotal + feesTotal;
+        amount = subTotal * (val / 100);
+      } else {
+        amount = val;
+      }
+
+      setTaxes([...taxes, { 
+        name: customTaxName, 
+        amount: String(amount),
+        type: customTaxType,
+        value: customTaxValue
+      }]);
+      
+      setCustomTaxName("");
+      setCustomTaxValue("");
+      setCustomTaxType('PERCENT');
+      setTaxModalVisible(false);
+    }
+  };
+
+  const handleRemoveTax = (index: number) => {
+    const newTaxes = taxes.filter((_, i) => i !== index);
+    setTaxes(newTaxes);
+  };
+
   const handleAddDiscount = () => {
     if (customDiscountName && customDiscountValue) {
       let amount = 0;
       const val = Number(customDiscountValue);
       
       if (customDiscountType === 'PERCENT') {
-        // Calculate based on current subtotal (Items + Fees)
+        // Calculate based on current subtotal (Items + Fees + Taxes)
         const itemsTotal = items.reduce((sum, item) => sum + (Number(item.price) || 0) * (Number(item.qty) || 0), 0);
         const feesTotal = fees.reduce((sum, fee) => sum + (Number(fee.amount) || 0), 0);
-        const subTotal = itemsTotal + feesTotal;
+        const taxesTotal = taxes.reduce((sum, tax) => sum + (Number(tax.amount) || 0), 0);
+        const subTotal = itemsTotal + feesTotal + taxesTotal;
         amount = subTotal * (val / 100);
       } else {
         amount = val;
@@ -307,11 +371,13 @@ export default function ScanScreen() {
       formData.append("type", "MANUAL");
       // Use rawOcrText to store the transaction title/description
       formData.append("rawOcrText", transactionTitle);
+      formData.append("transactionDate", transactionDate.toISOString());
       
       const formattedItems = itemsData.map(item => ({
         name: item.name,
         price: Number(item.price),
         qty: Number(item.qty),
+        unit: item.unit,
         categoryId: item.categoryId,
         basePrice: item.basePrice ? Number(item.basePrice) : undefined,
         discountType: item.discountType,
@@ -323,6 +389,13 @@ export default function ScanScreen() {
         amount: Number(fee.amount),
       }));
 
+      const formattedTaxes = taxes.map(tax => ({
+        name: tax.name,
+        amount: Number(tax.amount),
+        type: tax.type,
+        value: Number(tax.value),
+      }));
+
       const formattedDiscounts = discounts.map(discount => ({
         name: discount.name,
         amount: Number(discount.amount),
@@ -332,14 +405,19 @@ export default function ScanScreen() {
 
       formData.append("items", JSON.stringify(formattedItems));
       formData.append("fees", JSON.stringify(formattedFees));
+      formData.append("taxes", JSON.stringify(formattedTaxes));
       formData.append("discounts", JSON.stringify(formattedDiscounts));
 
       return transactionService.createTransaction(formData);
     },
     onSuccess: () => {
       Alert.alert("Berhasil", "Transaksi berhasil ditambahkan");
-      setItems([{ name: "", price: "", qty: "1" }]);
+      setItems([{ name: "", price: "", qty: "1", unit: "pcs" }]);
       setTransactionTitle("");
+      setFees([]);
+      setTaxes([]);
+      setDiscounts([]);
+      setTransactionDate(new Date());
       queryClient.invalidateQueries({ queryKey: ["transactions"] });
       queryClient.invalidateQueries({ queryKey: ["recentTransactions"] });
       queryClient.invalidateQueries({ queryKey: ["monthlyStats"] });
@@ -351,7 +429,7 @@ export default function ScanScreen() {
   });
 
   const handleAddItem = () => {
-    setItems([...items, { name: "", price: "", qty: "1" }]);
+    setItems([...items, { name: "", price: "", qty: "1", unit: "pcs" }]);
   };
 
   const handleRemoveItem = (index: number) => {
@@ -365,8 +443,8 @@ export default function ScanScreen() {
     let item = { ...newItems[index] };
 
     if (field === 'price' || field === 'qty' || field === 'basePrice' || field === 'discountValue') {
-      // Allow numbers and minus sign
-      const numericValue = value.toString().replace(/[^0-9-]/g, '');
+      // Allow numbers, minus sign, and dot for decimals
+      const numericValue = value.toString().replace(/[^0-9-.]/g, '');
       // @ts-ignore
       item[field] = numericValue;
     } else {
@@ -434,6 +512,24 @@ export default function ScanScreen() {
     }
   };
 
+  const openUnitModal = (index: number) => {
+    setActiveUnitItemIndex(index);
+    setUnitModalVisible(true);
+  };
+
+  const selectUnit = (unit: string) => {
+    if (activeUnitItemIndex !== null) {
+      const newItems = [...items];
+      newItems[activeUnitItemIndex] = {
+        ...newItems[activeUnitItemIndex],
+        unit: unit,
+      };
+      setItems(newItems);
+      setUnitModalVisible(false);
+      setActiveUnitItemIndex(null);
+    }
+  };
+
   const handleSubmit = () => {
     if (!isFormValid) return;
     mutation.mutate(items);
@@ -492,6 +588,39 @@ export default function ScanScreen() {
             />
           </View>
 
+          <View style={styles.mainFormGroup}>
+            <Text style={[styles.label, { color: colors.secondary }]}>Tanggal Transaksi</Text>
+            <TouchableOpacity
+              style={[styles.input, { backgroundColor: colors.card, borderColor: colors.border, justifyContent: 'center' }]}
+              onPress={() => setShowDatePicker(true)}
+            >
+              <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                <Calendar size={20} color={colors.primary} style={{ marginRight: 8 }} />
+                <Text style={{ color: colors.text }}>
+                  {transactionDate.toLocaleDateString("id-ID", {
+                    weekday: "long",
+                    year: "numeric",
+                    month: "long",
+                    day: "numeric",
+                  })}
+                </Text>
+              </View>
+            </TouchableOpacity>
+            {showDatePicker && (
+              <DateTimePicker
+                value={transactionDate}
+                mode="date"
+                display="default"
+                onChange={(event: any, selectedDate?: Date) => {
+                  setShowDatePicker(false);
+                  if (selectedDate) {
+                    setTransactionDate(selectedDate);
+                  }
+                }}
+              />
+            )}
+          </View>
+
           <Text style={[styles.sectionTitle, { color: colors.secondary }]}>Items</Text>
 
           {items.map((item, index) => (
@@ -530,13 +659,18 @@ export default function ScanScreen() {
                     placeholder="0"
                     placeholderTextColor={colors.muted}
                     keyboardType="numeric"
-                    value={formatNumber(item.price)}
+                    value={item.price}
                     onChangeText={(text) => handleUpdateItem(index, "price", text)}
                     editable={!item.discountType}
                   />
+                  {item.price ? (
+                    <Text style={{ fontSize: 10, color: colors.secondary, marginTop: 2 }}>
+                      {formatNumber(item.price)}
+                    </Text>
+                  ) : null}
                 </View>
 
-                <View style={[styles.formGroup, { flex: 1 }]}>
+                <View style={[styles.formGroup, { flex: 1, marginRight: 12 }]}>
                   <Text style={[styles.label, { color: colors.secondary }]}>Jml</Text>
                   <TextInput
                     style={[styles.input, { backgroundColor: colors.background, borderColor: colors.border, color: colors.text }]}
@@ -546,6 +680,19 @@ export default function ScanScreen() {
                     value={item.qty}
                     onChangeText={(text) => handleUpdateItem(index, "qty", text)}
                   />
+                </View>
+
+                <View style={[styles.formGroup, { flex: 1 }]}>
+                  <Text style={[styles.label, { color: colors.secondary }]}>Satuan</Text>
+                  <TouchableOpacity
+                    style={[styles.input, { backgroundColor: colors.background, borderColor: colors.border, justifyContent: 'center' }]}
+                    onPress={() => openUnitModal(index)}
+                  >
+                    <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <Text style={{ color: colors.text }}>{item.unit || "pcs"}</Text>
+                      <ChevronDown size={16} color={colors.muted} />
+                    </View>
+                  </TouchableOpacity>
                 </View>
               </View>
 
@@ -566,9 +713,14 @@ export default function ScanScreen() {
                         placeholder="0"
                         placeholderTextColor={colors.muted}
                         keyboardType="numeric"
-                        value={formatNumber(item.basePrice || "")}
+                        value={item.basePrice || ""}
                         onChangeText={(text) => handleUpdateItem(index, "basePrice", text)}
                       />
+                      {item.basePrice ? (
+                        <Text style={{ fontSize: 10, color: colors.secondary, marginTop: 2 }}>
+                          {formatNumber(item.basePrice)}
+                        </Text>
+                      ) : null}
                     </View>
                     
                     <View style={styles.row}>
@@ -655,6 +807,37 @@ export default function ScanScreen() {
             <Text style={[styles.addButtonText, { color: colors.primary }]}>Tambah Biaya</Text>
           </TouchableOpacity>
 
+          <Text style={[styles.sectionTitle, { color: colors.secondary }]}>Pajak</Text>
+          
+          {taxes.map((tax, index) => (
+            <View key={index} style={[styles.itemCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
+              <View style={styles.itemHeader}>
+                <Text style={[styles.itemTitle, { color: colors.text }]}>{tax.name}</Text>
+                <TouchableOpacity onPress={() => handleRemoveTax(index)}>
+                  <Trash2 size={20} color="#FA5252" />
+                </TouchableOpacity>
+              </View>
+              <View style={styles.row}>
+                 <View style={[styles.formGroup, { flex: 1 }]}>
+                    <Text style={[styles.label, { color: colors.secondary }]}>
+                      Jumlah ({tax.type === 'PERCENT' ? `${tax.value}%` : 'Rp'})
+                    </Text>
+                    <Text style={[styles.input, { backgroundColor: colors.background, borderColor: colors.border, color: colors.text, paddingTop: 12 }]}>
+                      {formatNumber(tax.amount)}
+                    </Text>
+                 </View>
+              </View>
+            </View>
+          ))}
+
+          <TouchableOpacity 
+            style={[styles.addButton, { borderColor: colors.primary, backgroundColor: theme === 'dark' ? 'rgba(34, 139, 230, 0.1)' : 'rgba(34, 139, 230, 0.05)' }]} 
+            onPress={() => setTaxModalVisible(true)}
+          >
+            <Plus size={20} color={colors.primary} />
+            <Text style={[styles.addButtonText, { color: colors.primary }]}>Tambah Pajak</Text>
+          </TouchableOpacity>
+
           <Text style={[styles.sectionTitle, { color: colors.secondary }]}>Diskon Global</Text>
           
           {discounts.map((discount, index) => (
@@ -706,6 +889,40 @@ export default function ScanScreen() {
           </View>
         </ScrollView>
       </KeyboardAvoidingView>
+
+      {/* Unit Selection Modal */}
+      <Modal
+        visible={unitModalVisible}
+        transparent={true}
+        animationType="slide"
+        onRequestClose={() => setUnitModalVisible(false)}
+      >
+        <View style={styles.modalContainer}>
+          <View style={[styles.modalContent, { backgroundColor: colors.card, maxHeight: '50%' }]}>
+            <View style={styles.modalHeader}>
+              <Text style={[styles.modalTitle, { color: colors.text }]}>Pilih Satuan</Text>
+              <TouchableOpacity onPress={() => setUnitModalVisible(false)}>
+                <Text style={{ color: colors.secondary }}>Tutup</Text>
+              </TouchableOpacity>
+            </View>
+            <FlatList
+              data={UNIT_OPTIONS}
+              keyExtractor={(item) => item}
+              renderItem={({ item }) => (
+                <TouchableOpacity
+                  style={[styles.categoryItem, { borderBottomColor: colors.border }]}
+                  onPress={() => selectUnit(item)}
+                >
+                  <Text style={[styles.categoryItemName, { color: colors.text }]}>{item}</Text>
+                  {activeUnitItemIndex !== null && items[activeUnitItemIndex].unit === item && (
+                    <Check size={20} color={colors.primary} />
+                  )}
+                </TouchableOpacity>
+              )}
+            />
+          </View>
+        </View>
+      </Modal>
 
       {/* Category Selection Modal */}
       <Modal
@@ -790,6 +1007,75 @@ export default function ScanScreen() {
               onPress={handleAddFee}
             >
               <Text style={styles.submitButtonText}>Tambah Biaya</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Tax Modal */}
+      <Modal
+        visible={taxModalVisible}
+        animationType="slide"
+        transparent={true}
+        onRequestClose={() => setTaxModalVisible(false)}
+      >
+        <View style={styles.modalContainer}>
+          <View style={[styles.modalContent, { backgroundColor: colors.card }]}>
+            <View style={styles.modalHeader}>
+              <Text style={[styles.modalTitle, { color: colors.text }]}>Tambah Pajak</Text>
+              <TouchableOpacity onPress={() => setTaxModalVisible(false)}>
+                <Text style={[styles.closeButton, { color: colors.primary }]}>Tutup</Text>
+              </TouchableOpacity>
+            </View>
+            
+            <View style={styles.formGroup}>
+              <Text style={[styles.label, { color: colors.secondary }]}>Nama Pajak</Text>
+              <TextInput
+                style={[styles.input, { backgroundColor: colors.background, borderColor: colors.border, color: colors.text }]}
+                placeholder="Contoh: PPN, Service Charge"
+                placeholderTextColor={colors.muted}
+                value={customTaxName}
+                onChangeText={setCustomTaxName}
+              />
+            </View>
+
+            <View style={styles.row}>
+              <View style={[styles.formGroup, { flex: 1, marginRight: 12 }]}>
+                <Text style={[styles.label, { color: colors.secondary }]}>Tipe Pajak</Text>
+                <View style={{ flexDirection: 'row', borderWidth: 1, borderColor: colors.border, borderRadius: 8, overflow: 'hidden' }}>
+                  <TouchableOpacity 
+                    style={{ flex: 1, padding: 12, backgroundColor: customTaxType === 'PERCENT' ? colors.primary : colors.card, alignItems: 'center' }}
+                    onPress={() => setCustomTaxType('PERCENT')}
+                  >
+                    <Text style={{ color: customTaxType === 'PERCENT' ? '#fff' : colors.text, fontWeight: '600' }}>%</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity 
+                    style={{ flex: 1, padding: 12, backgroundColor: customTaxType === 'NOMINAL' ? colors.primary : colors.card, alignItems: 'center' }}
+                    onPress={() => setCustomTaxType('NOMINAL')}
+                  >
+                    <Text style={{ color: customTaxType === 'NOMINAL' ? '#fff' : colors.text, fontWeight: '600' }}>Rp</Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
+
+              <View style={[styles.formGroup, { flex: 2 }]}>
+                <Text style={[styles.label, { color: colors.secondary }]}>Nilai Pajak</Text>
+                <TextInput
+                  style={[styles.input, { backgroundColor: colors.background, borderColor: colors.border, color: colors.text }]}
+                  placeholder="0"
+                  placeholderTextColor={colors.muted}
+                  keyboardType="numeric"
+                  value={customTaxValue}
+                  onChangeText={(text) => setCustomTaxValue(text.replace(/[^0-9-.]/g, ''))}
+                />
+              </View>
+            </View>
+
+            <TouchableOpacity
+              style={[styles.submitButton, { backgroundColor: colors.primary, marginTop: 16 }]}
+              onPress={handleAddTax}
+            >
+              <Text style={styles.submitButtonText}>Tambah Pajak</Text>
             </TouchableOpacity>
           </View>
         </View>

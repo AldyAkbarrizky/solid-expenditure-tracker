@@ -1,8 +1,8 @@
 {
   "expo": {
-    "name": "solid-expenditure-tracker",
+    "name": "Expenditure Tracker",
     "slug": "solid-expenditure-tracker",
-    "version": "1.0.0",
+    "version": "2.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
     "scheme": "solidexpendituretracker",
@@ -19,7 +19,11 @@
         "monochromeImage": "./assets/images/android-icon-monochrome.png"
       },
       "edgeToEdgeEnabled": true,
-      "predictiveBackGestureEnabled": false
+      "predictiveBackGestureEnabled": false,
+      "permissions": [
+        "android.permission.RECORD_AUDIO"
+      ],
+      "package": "com.cyberargonaut.solidexpendituretracker"
     },
     "web": {
       "output": "static",
@@ -51,6 +55,12 @@
     "experiments": {
       "typedRoutes": true,
       "reactCompiler": true
+    },
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "cccdf822-a864-490f-ad8b-c5ed911fb627"
+      }
     }
   }
 }

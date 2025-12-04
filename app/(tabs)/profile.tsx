@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { View, Text, StyleSheet, TouchableOpacity, Alert, Modal, Pressable, Image } from "react-native";
+import { View, Text, StyleSheet, TouchableOpacity, Alert, Modal, Pressable, Image, ScrollView, RefreshControl } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useAuth } from "../../src/context/AuthContext";
 import { LogOut, User, Settings, ChevronRight, Users, X, Copy } from "lucide-react-native";
@@ -16,11 +16,21 @@ export default function ProfileScreen() {
   const [modalVisible, setModalVisible] = useState(false);
   const { colors } = useTheme();
   
-  const { data: familyMembers } = useQuery({
+  const [refreshing, setRefreshing] = useState(false);
+  const [familyModalVisible, setFamilyModalVisible] = useState(false);
+  
+  const { data: familyMembers, refetch } = useQuery({
     queryKey: ["familyMembers"],
     queryFn: familyService.getFamilyMembers,
     enabled: !!user?.familyId,
   });
+  console.log(familyMembers?.data);
+
+  const onRefresh = async () => {
+    setRefreshing(true);
+    await refetch();
+    setRefreshing(false);
+  };
 
   const handleLogout = () => {
     Alert.alert("Keluar", "Apakah Anda yakin ingin keluar?", [
@@ -31,24 +41,30 @@ export default function ProfileScreen() {
 
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>
-      <View style={styles.header}>
-        <TouchableOpacity onPress={() => setModalVisible(true)}>
-          <View style={[styles.avatar, { backgroundColor: colors.card }]}>
-            {user?.avatarUrl ? (
-              <Image 
-                source={{ uri: user.avatarUrl }} 
-                style={styles.avatarImage} 
-              />
-            ) : (
-              <Text style={[styles.avatarText, { color: colors.text }]}>
-                {user?.name?.charAt(0).toUpperCase()}
-              </Text>
-            )}
-          </View>
-        </TouchableOpacity>
-        <Text style={[styles.name, { color: colors.text }]}>{user?.name}</Text>
-        <Text style={[styles.email, { color: colors.secondary }]}>{user?.email}</Text>
-      </View>
+      <ScrollView 
+        contentContainerStyle={{ paddingBottom: 40 }}
+        refreshControl={
+          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={[colors.primary]} />
+        }
+      >
+        <View style={styles.header}>
+          <TouchableOpacity onPress={() => setModalVisible(true)}>
+            <View style={[styles.avatar, { backgroundColor: colors.card }]}>
+              {user?.avatarUrl ? (
+                <Image 
+                  source={{ uri: user.avatarUrl }} 
+                  style={styles.avatarImage} 
+                />
+              ) : (
+                <Text style={[styles.avatarText, { color: colors.text }]}>
+                  {user?.name?.charAt(0).toUpperCase()}
+                </Text>
+              )}
+            </View>
+          </TouchableOpacity>
+          <Text style={[styles.name, { color: colors.text }]}>{user?.name}</Text>
+          <Text style={[styles.email, { color: colors.secondary }]}>{user?.email}</Text>
+        </View>
 
       <Modal
         animationType="fade"
@@ -84,26 +100,61 @@ export default function ProfileScreen() {
       {user?.familyId && familyMembers && (
         <View style={[styles.section, { backgroundColor: colors.card }]}>
           <View style={styles.familyHeader}>
-            <View>
-              <Text style={[styles.sectionTitle, { color: colors.secondary, marginBottom: 4 }]}>Anggota Keluarga</Text>
-              <Text style={[styles.familyName, { color: colors.text }]}>{familyMembers.data.family.name}</Text>
-            </View>
-            {familyMembers.data.family.inviteCode && (
-              <TouchableOpacity 
-                style={[styles.inviteCodeContainer, { backgroundColor: colors.background }]}
-                onPress={() => {
-                  Clipboard.setStringAsync(familyMembers.data.family.inviteCode);
-                  Alert.alert("Disalin", "Kode undangan disalin ke clipboard!");
-                }}
-              >
-                <Text style={[styles.inviteCodeLabel, { color: colors.secondary }]}>Kode Undangan:</Text>
-                <View style={styles.codeWrapper}>
-                  <Text style={[styles.inviteCode, { color: colors.primary }]}>{familyMembers.data.family.inviteCode}</Text>
-                  <Copy size={14} color={colors.primary} style={{ marginLeft: 4 }} />
+            <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+              <TouchableOpacity onPress={() => setFamilyModalVisible(true)}>
+                <View style={[styles.familyAvatarSmall, { backgroundColor: colors.background }]}>
+                  {familyMembers.data.family.avatarUrl ? (
+                    <Image 
+                      source={{ uri: familyMembers.data.family.avatarUrl }} 
+                      style={styles.familyAvatarImageSmall} 
+                    />
+                  ) : (
+                    <Text style={[styles.familyAvatarTextSmall, { color: colors.text }]}>
+                      {familyMembers.data.family.name.charAt(0).toUpperCase()}
+                    </Text>
+                  )}
                 </View>
               </TouchableOpacity>
-            )}
+              <View style={{ marginLeft: 12 }}>
+                <Text style={[styles.sectionTitle, { color: colors.secondary, marginBottom: 4 }]}>Anggota Keluarga</Text>
+                <Text style={[styles.familyName, { color: colors.text }]}>{familyMembers.data.family.name}</Text>
+              </View>
+            </View>
+            <TouchableOpacity onPress={() => router.push("/family/detail")}>
+              <Text style={{ color: colors.primary, fontWeight: "600" }}>Lihat Detail</Text>
+            </TouchableOpacity>
           </View>
+
+          <Modal
+            animationType="fade"
+            transparent={true}
+            visible={familyModalVisible}
+            onRequestClose={() => setFamilyModalVisible(false)}
+          >
+            <View style={styles.modalContainer}>
+              <Pressable style={styles.modalOverlay} onPress={() => setFamilyModalVisible(false)} />
+              <View style={styles.modalContent}>
+                <View style={[styles.zoomedAvatar, { backgroundColor: colors.card }]}>
+                  {familyMembers.data.family.avatarUrl ? (
+                    <Image 
+                      source={{ uri: familyMembers.data.family.avatarUrl }} 
+                      style={styles.zoomedAvatarImage} 
+                    />
+                  ) : (
+                    <Text style={[styles.zoomedAvatarText, { color: colors.text }]}>
+                      {familyMembers.data.family.name.charAt(0).toUpperCase()}
+                    </Text>
+                  )}
+                </View>
+              </View>
+              <TouchableOpacity 
+                style={styles.closeButton} 
+                onPress={() => setFamilyModalVisible(false)}
+              >
+                <X color="#fff" size={30} />
+              </TouchableOpacity>
+            </View>
+          </Modal>
           
           <View style={styles.membersList}>
             {familyMembers.data.members.map((member) => (
@@ -166,10 +217,11 @@ export default function ProfileScreen() {
         </TouchableOpacity>
       </View>
 
-      <TouchableOpacity style={styles.logoutButton} onPress={handleLogout}>
-        <LogOut size={20} color="#FFFFFF" />
-        <Text style={styles.logoutText}>Keluar</Text>
-      </TouchableOpacity>
+        <TouchableOpacity style={styles.logoutButton} onPress={handleLogout}>
+          <LogOut size={20} color="#FFFFFF" />
+          <Text style={styles.logoutText}>Keluar</Text>
+        </TouchableOpacity>
+      </ScrollView>
     </SafeAreaView>
   );
 }
@@ -361,5 +413,21 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: 'bold',
     letterSpacing: 1,
+  },
+  familyAvatarSmall: {
+    width: 50,
+    height: 50,
+    borderRadius: 25,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  familyAvatarImageSmall: {
+    width: 50,
+    height: 50,
+    borderRadius: 25,
+  },
+  familyAvatarTextSmall: {
+    fontSize: 20,
+    fontWeight: "bold",
   },
 });

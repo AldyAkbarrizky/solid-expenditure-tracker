@@ -22,6 +22,8 @@ import {
   Wallet,
   Plus,
   History,
+  User,
+  Users,
 } from "lucide-react-native";
 import { useRouter } from "expo-router";
 
@@ -86,18 +88,18 @@ export default function Dashboard() {
           <View style={styles.headerRight}>
             {user?.familyId && (
               <View style={[styles.toggleContainer, { backgroundColor: colors.card, borderColor: colors.border }]}>
-                <TouchableOpacity 
-                  style={[styles.toggleButton, !isFamily && { backgroundColor: colors.primary }]}
-                  onPress={() => setIsFamily(false)}
-                >
-                  <Text style={[styles.toggleText, !isFamily ? { color: '#fff' } : { color: colors.secondary }]}>Saya</Text>
-                </TouchableOpacity>
-                <TouchableOpacity 
-                  style={[styles.toggleButton, isFamily && { backgroundColor: colors.primary }]}
-                  onPress={() => setIsFamily(true)}
-                >
-                  <Text style={[styles.toggleText, isFamily ? { color: '#fff' } : { color: colors.secondary }]}>Keluarga</Text>
-                </TouchableOpacity>
+                  <TouchableOpacity 
+                    style={[styles.toggleButton, !isFamily && { backgroundColor: colors.primary }]}
+                    onPress={() => setIsFamily(false)}
+                  >
+                    <User size={16} color={!isFamily ? '#fff' : colors.secondary} />
+                  </TouchableOpacity>
+                  <TouchableOpacity 
+                    style={[styles.toggleButton, isFamily && { backgroundColor: colors.primary }]}
+                    onPress={() => setIsFamily(true)}
+                  >
+                    <Users size={16} color={isFamily ? '#fff' : colors.secondary} />
+                  </TouchableOpacity>
               </View>
             )}
 
@@ -120,12 +122,19 @@ export default function Dashboard() {
         </View>
 
         {/* Summary Card */}
-        <View style={[styles.summaryCard, { backgroundColor: colors.primary, shadowColor: colors.primary }]}>
+        <TouchableOpacity 
+          style={[styles.summaryCard, { backgroundColor: colors.primary, shadowColor: colors.primary }]}
+          onPress={() => router.push("/reports/monthly")}
+          activeOpacity={0.9}
+        >
           <View style={styles.summaryHeader}>
             <Text style={styles.summaryTitle}>{isFamily ? "Pengeluaran Keluarga" : "Pengeluaran Pribadi"}</Text>
             <TouchableOpacity 
               style={styles.quickAddButton}
-              onPress={() => router.push("/(tabs)/scan")}
+              onPress={(e) => {
+                e.stopPropagation();
+                router.push("/(tabs)/scan");
+              }}
             >
               <Plus size={16} color="#FFFFFF" />
               <Text style={styles.quickAddText}>Tambah</Text>
@@ -140,8 +149,10 @@ export default function Dashboard() {
               <TrendingUp size={14} color="#FF6B6B" />
               <Text style={styles.trendText}>+12% vs bulan lalu</Text>
             </View>
+            <View style={{ flex: 1 }} />
+            <Text style={{ color: 'rgba(255,255,255,0.8)', fontSize: 12 }}>Ketuk untuk detail</Text>
           </View>
-        </View>
+        </TouchableOpacity>
 
         {/* Recent Transactions */}
         <View style={styles.section}>
@@ -388,13 +399,9 @@ const styles = StyleSheet.create({
     padding: 4,
   },
   toggleButton: {
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: 10,
-  },
-  toggleText: {
-    fontSize: 12,
-    fontWeight: '600',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 20,
   },
   transactionHeader: {
     flexDirection: 'row',

@@ -8,4 +8,11 @@ export const statsService = {
     });
     return response.data;
   },
+
+  async getReport(startDate: string, endDate: string, family: boolean = false) {
+    const response = await api.get<ApiResponse<any>>("/stats/report", {
+      params: { startDate, endDate, family },
+    });
+    return response.data;
+  },
 };
